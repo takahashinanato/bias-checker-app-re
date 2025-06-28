@@ -11,13 +11,13 @@ if "diagnosis_count" not in st.session_state:
     st.session_state.diagnosis_count = 0
 
 st.title("🧠 政治的バイアス診断アプリ")
-st.markdown("SNS投稿や自身の意見などから政治的意見を入力してください（100字以内）例:『憲法改正は必要だと思う』『夫婦別姓制度は導入されるべきだ』")
+st.markdown("SNS投稿や自身の意見などから政治的意見を入力してください（200字以内）例:『憲法改正は必要だと思う』『夫婦別姓制度は導入されるべきだ』")
 
 user_input = st.text_area("投稿内容", key="user_input")
 
 if st.button("診断する") and user_input:
     if st.session_state.diagnosis_count >= 5:
-        st.warning("プロトタイプでは1人5回までの診断に制限されています。")
+        st.warning("プロトタイプでは1度に5回までの診断に制限されています。")
     else:
         prompt = f"""
 以下のSNS投稿から、以下の3つを出力してください：
