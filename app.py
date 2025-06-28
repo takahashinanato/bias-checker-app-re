@@ -1,10 +1,9 @@
 import streamlit as st
-import os
-from dotenv import load_dotenv
 from openai import OpenAI
 import matplotlib.pyplot as plt
 import re
 
+# APIキーは Streamlit secrets から取得
 api_key = st.secrets["OPENAI_API_KEY"]
 client = OpenAI(api_key=api_key)
 
@@ -67,7 +66,6 @@ if st.button("診断する") and user_input:
                 ax.set_xlabel("Political Bias Score (-1.0 = Conservative, +1.0 = Liberal)")
                 ax.set_ylabel("Strength Score (0.0 = Mild, 1.0 = Strong)")
                 ax.grid(True)
-
                 st.pyplot(fig)
             else:
                 st.error("診断結果の解析に失敗しました。フォーマットを確認してください。")
