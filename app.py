@@ -5,8 +5,7 @@ from openai import OpenAI
 import matplotlib.pyplot as plt
 import re
 
-load_dotenv()
-api_key = os.getenv("OPENAI_API_KEY")
+api_key = st.secrets["OPENAI_API_KEY"]
 client = OpenAI(api_key=api_key)
 
 if "diagnosis_count" not in st.session_state:
