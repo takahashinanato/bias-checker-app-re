@@ -10,7 +10,7 @@ client = OpenAI(api_key=api_key)
 if "diagnosis_count" not in st.session_state:
     st.session_state.diagnosis_count = 0
 
-st.title("🧠 政治的バイアス診断アプリ")
+st.title("🧠 政治バイアス検出アプリ")
 st.markdown("SNS投稿や自身の意見などから政治的意見を入力してください（200字以内）例:『憲法改正は必要だと思う』『夫婦別姓制度は導入されるべきだ』")
 
 user_input = st.text_area("投稿内容", key="user_input")
