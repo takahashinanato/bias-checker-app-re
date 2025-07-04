@@ -1,75 +1,109 @@
 import streamlit as st
-from openai import OpenAI
+import openai
+import pandas as pd
 import matplotlib.pyplot as plt
-import re
+import json
+import math
 
-# APIキーは Streamlit secrets から取得
-api_key = st.secrets["OPENAI_API_KEY"]
-client = OpenAI(api_key=api_key)
+# OpenAI API キー（Streamlit Cloudでは secrets に登録）
+openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-if "diagnosis_count" not in st.session_state:
-    st.session_state.diagnosis_count = 0
+# セッションで履歴管理
+if "diagnosis_history" not in st.session_state:
+    st.session_state.diagnosis_history = []
 
-st.title("🧠 政治バイアス検出アプリ")
-st.markdown("SNS投稿や自身の意見などから政治的意見を入力してください（200字以内）例:『憲法改正は必要だと思う』『夫婦別姓制度は導入されるべきだ』")
+# 架空投稿データ（ダミー例）
+sample_posts = [
+    {"content": "憲法改正は必要だと思う", "bias_score": -0.6, "strength_score": 0.7},
+    {"content": "夫婦別姓制度は導入されるべきだ", "bias_score": 0.5, "strength_score": 0.6},
+    {"content": "防衛費はもっと増やすべきだ", "bias_score": -0.8, "strength_score": 0.9},
+    {"content": "同性婚は法的に認めるべき", "bias_score": 0.8, "strength_score": 0.7}
+]
 
-user_input = st.text_area("投稿内容", key="user_input")
+# タイトル・ジャンル選択
+st.title("🧠 政治的バイアス診断アプリ")
+genre = st.selectbox("診断するテーマを選んでください", ["政治", "経済", "ジェンダー", "その他"])
+
+st.markdown("SNS投稿や自身の意見などを入力（200字以内）")
+
+user_input = st.text_area("投稿内容", max_chars=200)
 
 if st.button("診断する") and user_input:
-    if st.session_state.diagnosis_count >= 5:
-        st.warning("プロトタイプでは1度に5回までの診断に制限されています。")
-    else:
-        prompt = f"""
-以下のSNS投稿から、以下の3つを出力してください：
-
-1. 政治的傾向スコア（-1.0=保守、+1.0=リベラル）
-2. バイアス強度スコア（0.0〜1.0）
-3. コメント（なぜそのスコアになったか、該当箇所を指摘して必ず事実ベースでハルシネーションを起こさないようになるべく中立的に200文字程度で）
+    # OpenAI API 呼び出し用プロンプト
+    prompt = f"""
+以下のSNS投稿について、JSON形式で診断してください。
+出力は以下のキーを持つJSONとします:
+"bias_score": -1.0から1.0の間の数値（-1.0=保守、+1.0=リベラル）,
+"strength_score": 0.0から1.0の間の数値,
+"comment": 約200文字で中立的かつ根拠を説明
 
 投稿内容: {user_input}
-
-出力フォーマット:
-傾向スコア: 数値
-強さスコア: 数値
-コメント: ○○○○
 """
 
-        with st.spinner("診断中..."):
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
-            )
-            result = response.choices[0].message.content
-            st.code(result)
+    with st.spinner("診断中..."):
+        response = openai.ChatCompletion.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
+        raw = response.choices[0].message.content
 
-        st.session_state.diagnosis_count += 1
+    try:
+        # JSONパース
+        data = json.loads(raw)
+        bias_score = data["bias_score"]
+        strength_score = data["strength_score"]
+        comment = data["comment"]
 
-        try:
-            bias_match = re.search(r"傾向スコア[:：]\s*(-?\d+\.?\d*)", result)
-            strength_match = re.search(r"強さスコア[:：]\s*(\d+\.?\d*)", result)
-            comment_match = re.search(r"コメント[:：]\s*(.*)", result, re.DOTALL)
+        # 結果表示
+        st.markdown(f"**傾向スコア:** {bias_score} **強さスコア:** {strength_score}")
+        st.markdown(f"**コメント:** {comment}")
 
-            if bias_match and strength_match and comment_match:
-                bias_score = float(bias_match.group(1))
-                strength_score = float(strength_match.group(1))
-                comment = comment_match.group(1).strip()
+        # 履歴に追加
+        st.session_state.diagnosis_history.append({
+            "content": user_input,
+            "genre": genre,
+            "bias_score": bias_score,
+            "strength_score": strength_score,
+            "comment": comment
+        })
 
-                st.markdown(f"**傾向スコア:** {bias_score} **強さスコア:** {strength_score}")
-                st.markdown(f"**コメント:** {comment}")
+        # 散布図描画
+        fig, ax = plt.subplots()
+        # 架空投稿データ
+        for sample in sample_posts:
+            ax.scatter(sample["bias_score"], sample["strength_score"], color="gray", label="架空投稿", alpha=0.6)
+        # 入力結果
+        ax.scatter(bias_score, strength_score, color="blue", label="あなたの投稿", s=100)
+        ax.set_xlim(-1.0, 1.0)
+        ax.set_ylim(0.0, 1.0)
+        ax.set_xlabel("Political Bias Score (-1.0 = Conservative, +1.0 = Liberal)")
+        ax.set_ylabel("Strength Score (0.0 = Mild, 1.0 = Strong)")
+        ax.grid(True)
+        st.pyplot(fig)
 
-                fig, ax = plt.subplots()
-                ax.scatter(bias_score, strength_score, color="blue")
-                ax.set_xlim(-1.0, 1.0)
-                ax.set_ylim(0.0, 1.0)
-                ax.set_xlabel("Political Bias Score (-1.0 = Conservative, +1.0 = Liberal)")
-                ax.set_ylabel("Strength Score (0.0 = Mild, 1.0 = Strong)")
-                ax.grid(True)
-                st.pyplot(fig)
-            else:
-                st.error("診断結果の解析に失敗しました。フォーマットを確認してください。")
-        except Exception as e:
-            st.error(f"エラーが発生しました: {e}")
+        # 似た意見・反対意見提示
+        def distance(a, b):
+            return math.sqrt((a["bias_score"] - b["bias_score"])**2 + (a["strength_score"] - b["strength_score"])**2)
 
-st.info(f"診断回数: {st.session_state.diagnosis_count}/5")
+        closest = min(sample_posts, key=lambda s: distance(s, data))
+        opposite = max(sample_posts, key=lambda s: distance(s, data))
+
+        st.markdown("### 似た意見の例")
+        st.markdown(f"**内容:** {closest['content']} **スコア:** {closest['bias_score']}, {closest['strength_score']}")
+
+        st.markdown("### 反対意見の例")
+        st.markdown(f"**内容:** {opposite['content']} **スコア:** {opposite['bias_score']}, {opposite['strength_score']}")
+
+    except Exception as e:
+        st.error(f"診断結果の解析に失敗しました: {e}")
+        st.code(raw)
+
+# 履歴表示・CSV保存
+if st.session_state.diagnosis_history:
+    df = pd.DataFrame(st.session_state.diagnosis_history)
+    st.markdown("### 診断履歴")
+    st.dataframe(df)
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button("診断履歴をCSVでダウンロード", csv, file_name="diagnosis_history.csv", mime="text/csv")
